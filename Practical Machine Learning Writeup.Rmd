@@ -1,0 +1,151 @@
+---
+title: "Practical Machine Learning - Course Project"
+author: "Hu"
+date: "2015.11.23"
+---
+### Introduction
+
+**Background**
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement ¨C a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the [website](http://groupware.les.inf.puc-rio.br/har) . 
+
+**Data**
+The training data for this project are available here: 
+
+(https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)
+
+The test data are available here: 
+
+(https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)
+
+The data for this project come from this source: 
+
+(http://groupware.les.inf.puc-rio.br/har). 
+
+**Goal**
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases. 
+
+### Loading and Cleaning Data
+
+Preparing
+```{r , results='hide', warning=FALSE}
+Sys.setlocale("LC_ALL",locale="english")
+library("caret")
+library("rpart")
+library("rattle")
+library("randomForest")
+set.seed(12345)
+```
+
+
+First, loading  data.
+
+```{r}
+setwd("e:/data") # set your own work directory
+training=read.csv( "pml-training.csv",  na.strings=c("NA","#DIV/0!",""))
+testing=read.csv( "pml-testing.csv",  na.strings=c("NA","#DIV/0!",""))
+```
+
+Second, Cleaning data.
+
+Remove the Columns with all NA. 
+
+```{r}
+a=0
+for(i in 1:dim(training)[2]){
+    if(all(is.na(training[,i])))
+        a[i]=i
+}
+a=na.omit(a[-1])
+train=training[,-a]
+test=testing[,-a]
+remove(a);remove(i)
+```
+
+Cleaning variables with more than 70% NA.
+
+```{r}
+b = 0
+for(i in 1:dim(train)[2] ){
+    if( !is.na( table(is.na(train[,i]))[2]/dim(train)[1] ) ){
+        if( table(is.na(train[,i]))[2]/dim(train)[1] >=0.7 )
+            b[i]=i
+    }
+}
+b=na.omit(b[-1])
+train=train[,-b]
+test=test[,-b]
+remove(b);remove(i)
+remove(training);remove(testing)
+```
+
+Cleaning the irrelevant variables (like username, rowtime, new_window etc. )
+
+```{r}
+train=train[,-(1:6)]
+test=test[,-(1:6)]
+```
+
+Partioning the training set into two,  70% for train2, 30% for test2:
+
+```{r}
+inTrain = createDataPartition(y=train$classe,p=0.7, list=FALSE)
+train2 = train[inTrain,]
+test2 = train[-inTrain,]
+dim(train2); dim(test2)
+```
+
+### Predicting with Decision Tree
+
+Building up decision tree.
+
+```{r}
+modfit1 = rpart(classe ~ ., data=train2,method = "class")
+```
+
+```{r}
+fancyRpartPlot(modfit1)
+```
+
+```{r}
+pred1= predict(modfit1, test2, type = "class")
+confusionMatrix(pred1, test2$classe)
+```
+
+From the confusion Matrix we know thar the accuracy of decision tree is only 73.68%. If we use other method with cross validation like random forests, the result maybe more better.
+
+### Predicting with Random forests.
+
+```{r}
+modfit2 = randomForest(classe ~ ., data=train2, method="class")
+pred2= predict(modfit2, test2, type = "class")
+plot(modfit2)
+confusionMatrix(pred2, test2$classe)
+```
+
+Random Forests gave an accuracy in the test2 dataset of 99.49%, which was more accurate than Decision Trees . The expected out-of-sample error is 100 - 99.49 = 0.51%.
+
+### Predicting Results on the Test Data
+
+Using same method to predicit the Test Data
+
+```{r}
+modfit3 = randomForest(classe ~ ., data=train, method="class")
+answers= predict(modfit3, test, type = "class")
+answers
+```
+
+Write the results to a text file for submission.
+
+```{r}
+pml_write_files = function(x){
+    n = length(x)
+    for(i in 1:n){
+        filename = paste0("problem_id_",i,".txt")
+        write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+    }
+}
+pml_write_files(answers)
+```
+
